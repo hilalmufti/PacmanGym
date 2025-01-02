@@ -6,6 +6,12 @@ from gymnasium import Env
 from tqdm import tqdm
 
 
+def get_action(obs, q_values, sampler, epsilon):
+    if np.random.random() < epsilon:
+        return sampler()
+    else:
+        return int(np.argmax(q_values[obs]))
+
 def decay_epsilon(epsilon: float, epsilon_decay: float, final_epsilon: float):
     return max(final_epsilon, epsilon - epsilon_decay)
 
@@ -63,10 +69,9 @@ class BlackjackAgent:
         self.training_error = []
 
     def get_action(self, obs: tuple[int, int, bool]) -> int:
-        if np.random.random() < self.epsilon:
-            return self.env.action_space.sample()
-        else:
-            return int(np.argmax(self.q_values[obs]))
+        return get_action(
+            obs, self.q_values, self.env.action_space.sample, self.epsilon
+        )
 
     def update(
         self,

@@ -18,3 +18,5 @@ env = gym.make('BerkeleyPacman-v0')
 ~~~~
 
 Note: This was created for the 10-703 Project at Carnegie Mellon University. This is still under active development
+
+If you have a python error, use Python 3.11, and do `brew install python-tk@3.11`

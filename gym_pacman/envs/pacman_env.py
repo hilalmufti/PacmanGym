@@ -1,6 +1,6 @@
-import gym
-from gym import spaces
-from gym.utils import seeding
+import gymnasium as gym
+from gymnasium import spaces
+from gymnasium.utils import seeding
 import numpy as np
 
 from .graphicsDisplay import PacmanGraphics, DEFAULT_GRID_SIZE
@@ -12,7 +12,7 @@ from .layout import getLayout, getRandomLayout
 from .ghostAgents import DirectionalGhost
 from .pacmanAgents import OpenAIAgent
 
-from gym.utils import seeding
+from gymnasium.utils import seeding
 
 import json
 import os
@@ -92,7 +92,8 @@ class PacmanEnv(gym.Env):
         self.chooseLayout(randomLayout=True)
         return [seed]
 
-    def reset(self, layout=None):
+    # [] TODO: use `options`
+    def reset(self, layout=None, seed=None, options=None):
         # get new layout
         #if self.layout is None:
         #    self.chooseLayout(randomLayout=True)
@@ -143,6 +144,9 @@ class PacmanEnv(gym.Env):
             'ghost_in_frame': [self.ghostInFrame],
             'step_counter': [[0]],
         }
+
+        if seed is not None:
+            self.seed(seed)
 
         return self._get_image()
 
@@ -246,11 +250,18 @@ class PacmanEnv(gym.Env):
         if mode == 'rgb_array':
             return img
         elif mode == 'human':
-            from gym.envs.classic_control import rendering
+            # from gymnasium.envs.classic_control import rendering
+            import pyglet
             if self.viewer is None:
-                self.viewer = rendering.SimpleImageViewer()
-            self.viewer.imshow(img)
-            return self.viewer.isopen
+                # self.viewer = rendering.SimpleImageViewer()
+                self.viewer = pyglet.window.Window()
+            self.viewer.width = img.shape[1]
+            self.viewer.height = img.shape[0]
+            image = pyglet.image.ImageData(img.shape[1], img.shape[0], 'RGB', img.tobytes())
+            self.viewer.clear()
+            image.blit(0, 0)
+            self.viewer.flip()
+            return self.viewer.is_open
 
     def close(self):
         # TODO: implement code here to do closing stuff

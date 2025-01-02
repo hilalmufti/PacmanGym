@@ -5,9 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "gymnasium>=1.0.0",
+    "gymnasium[box2d]>=1.0.0",
     "pillow>=11.1.0",
     "pyglet>=2.0.20",
+    "swig>=4.3.0",
 ]
 
 [build-system]

@@ -1,35 +1,90 @@
 from collections import defaultdict
 
 import gymnasium as gym
-import numpy as np
 from gymnasium import Env
-from tqdm import tqdm
+from matplotlib import pyplot as plt
+import numpy as np
+from tqdm import trange
 
 
-def get_action(obs, q_values, sampler, epsilon):
-    if np.random.random() < epsilon:
-        return sampler()
-    else:
-        return int(np.argmax(q_values[obs]))
-
-def decay_epsilon(epsilon: float, epsilon_decay: float, final_epsilon: float):
-    return max(final_epsilon, epsilon - epsilon_decay)
+def policy(pred, act, rand):
+    return int(act) if not pred else rand
 
 
-def td(q_new, q_old, reward, discount_factor):
-    return reward + (discount_factor * q_new) - q_old
+def policy_eps_greedy(eps, act, rand):
+    return policy(
+        np.random.rand() < eps,
+        act,
+        rand,
+    )
 
 
-def step_td(q, td, lr):
-    assert not callable(td)
-    return q + lr * td
+def decay(eps: float, stp: float, flr: float):
+    return max(flr, eps - stp)
 
 
-def update_q(
-    q_new, q_old, reward: float, terminated: bool, discount_factor: float, lr: float
-):
-    td_error = td(q_new, q_old, reward, discount_factor)
-    return step_td(q_old, td_error, lr), td_error
+def loss(x2, x1, bias=0):
+    return (x2 - x1) + bias
+
+
+def loss_td(q_new, q_old, reward, discount_factor):
+    return loss(discount_factor * q_new, q_old, reward)
+
+
+def opt(x, obj, lr):
+    return x - lr * obj
+
+
+def opt_td(q, td, lr):
+    return opt(q, td, -lr)
+
+
+def step(obs, env, agent):
+    action = agent.get_action(obs)
+    next_obs, reward, terminated, truncated, info = env.step(action)
+    agent.update(obs, action, reward, terminated, next_obs)
+
+    return next_obs, terminated or truncated, info
+
+
+def play(env, agent):
+    obs, _ = env.reset()
+    done = False
+
+    while not done:
+        obs, done, _ = step(obs, env, agent)
+
+    agent.decay_epsilon()
+
+
+def repeatedly(fn, it):
+    return [fn(i) for i in (range(it) if isinstance(it, int) else it)]
+
+
+def train(env, agent, n_episodes):
+    repeatedly(lambda _: play(env, agent), trange(n_episodes))
+
+
+def visualize(env, agent):
+    fig, axs = plt.subplots(1, 3, figsize=(20, 8))
+
+    axs[0].plot(np.convolve(env.return_queue, np.ones(100)))
+    axs[0].set_title("Episode Rewards")
+    axs[0].set_xlabel("Episode")
+    axs[0].set_ylabel("Reward")
+
+    axs[1].plot(np.convolve(env.length_queue, np.ones(100)))
+    axs[1].set_title("Episode Length")
+    axs[1].set_xlabel("Episode")
+    axs[1].set_ylabel("Length")
+
+    axs[2].plot(np.convolve(agent.training_error, np.ones(100)))
+    axs[2].set_title("Training Error")
+    axs[2].set_xlabel("Episode")
+    axs[2].set_ylabel("Temporal Difference")
+
+    plt.tight_layout()
+    plt.show()
 
 
 def pprint_env(env, n=0):
@@ -69,8 +124,10 @@ class BlackjackAgent:
         self.training_error = []
 
     def get_action(self, obs: tuple[int, int, bool]) -> int:
-        return get_action(
-            obs, self.q_values, self.env.action_space.sample, self.epsilon
+        return policy_eps_greedy(
+            self.epsilon,
+            np.argmax(self.q_values[obs]),
+            self.env.action_space.sample(),
         )
 
     def update(
@@ -84,15 +141,13 @@ class BlackjackAgent:
         q_new = (not terminated) * np.max(self.q_values[next_obs])
         q_old = self.q_values[obs][action]
 
-        self.q_values[obs][action], td_error = update_q(
-            q_new, q_old, reward, terminated, self.discount_factor, self.lr
-        )
-        self.training_error.append(td_error)
+        l = loss_td(q_new, q_old, reward, self.discount_factor)
+        self.q_values[obs][action] = opt_td(q_old, l, self.lr)
+
+        self.training_error.append(l)
 
     def decay_epsilon(self):
-        self.epsilon = decay_epsilon(
-            self.epsilon, self.epsilon_decay, self.final_epsilon
-        )
+        self.epsilon = decay(self.epsilon, self.epsilon_decay, self.final_epsilon)
 
     def __repr__(self):
         return (
@@ -109,21 +164,17 @@ def main():
     initial_epsilon = 1.0
     epsilon_decay = initial_epsilon / (n_episodes / 2)  # 0.00002
     final_epsilon = 0.1
-    discount_factor = 0.95
 
     env = gym.make("Blackjack-v1", sab=False)
-    pprint_env(env, 1)
 
     agent = BlackjackAgent(
         env, learning_rate, initial_epsilon, epsilon_decay, final_epsilon
     )
-    print(agent)
-    print()
+    env = gym.wrappers.RecordEpisodeStatistics(env, buffer_length=n_episodes)
 
-    for i in range(70000):
-        if i % 7000 == 0:
-            print(agent.get_action((1, 1, False)), agent.epsilon)
-        agent.decay_epsilon()
+    # play(env, agent)
+    train(env, agent, n_episodes)
+    visualize(env, agent)
 
 
 if __name__ == "__main__":

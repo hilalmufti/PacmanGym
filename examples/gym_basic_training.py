@@ -8,15 +8,18 @@ from tqdm import trange
 
 
 def policy(obs, qs, eps, pred, act, rand):
-    return act(obs, qs) if not pred(eps) else rand(obs, qs)
+    if pred(eps):
+        return rand(obs, qs)
+    else:
+        return act(obs, qs)
 
 
 def policy_eps_greedy(obs, qs, eps, act, rand):
     return policy(obs, qs, eps, lambda eps: np.random.rand() < eps, act, rand)
 
 
-def decay(eps: float, stp: float, flr: float):
-    return max(flr, eps - stp)
+def decay(eps: float, dec: float, flr: float):
+    return max(flr, eps - dec)
 
 
 def loss(x2, x1, bias=0):
@@ -35,6 +38,10 @@ def opt_td(q, td, lr):
     return opt(q, td, -lr)
 
 
+def repeatedly(fn, it):
+    return [fn(i) for i in (range(it) if isinstance(it, int) else it)]
+
+
 def step(obs, env, agent):
     action = agent.get_action(obs)
     next_obs, reward, terminated, truncated, info = env.step(action)
@@ -46,19 +53,17 @@ def step(obs, env, agent):
 def play(env, agent):
     obs, _ = env.reset()
     done = False
-
     while not done:
         obs, done, _ = step(obs, env, agent)
 
+
+def train_step(env, agent):
+    play(env, agent)
     agent.decay_epsilon()
 
 
-def repeatedly(fn, it):
-    return [fn(i) for i in (range(it) if isinstance(it, int) else it)]
-
-
 def train(env, agent, n_episodes):
-    repeatedly(lambda _: play(env, agent), trange(n_episodes))
+    repeatedly(lambda _: train_step(env, agent), trange(n_episodes))
 
 
 def visualize(env, agent):
@@ -170,7 +175,6 @@ def main():
     )
     env = gym.wrappers.RecordEpisodeStatistics(env, buffer_length=n_episodes)
 
-    # play(env, agent)
     train(env, agent, n_episodes)
     visualize(env, agent)
 

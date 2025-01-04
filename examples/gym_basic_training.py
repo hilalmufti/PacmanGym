@@ -7,16 +7,12 @@ import numpy as np
 from tqdm import trange
 
 
-def policy(pred, act, rand):
-    return int(act) if not pred else rand
+def policy(obs, qs, eps, pred, act, rand):
+    return int(act(obs, qs)) if not pred(eps) else rand(obs, qs)
 
 
-def policy_eps_greedy(eps, act, rand):
-    return policy(
-        np.random.rand() < eps,
-        act,
-        rand,
-    )
+def policy_eps_greedy(obs, qs, eps, act, rand):
+    return policy(obs, qs, eps, lambda eps: np.random.rand() < eps, act, rand)
 
 
 def decay(eps: float, stp: float, flr: float):
@@ -125,9 +121,11 @@ class BlackjackAgent:
 
     def get_action(self, obs: tuple[int, int, bool]) -> int:
         return policy_eps_greedy(
+            obs,
+            self.q_values,
             self.epsilon,
-            np.argmax(self.q_values[obs]),
-            self.env.action_space.sample(),
+            lambda obs, qs: np.argmax(qs[obs]),
+            lambda obs, qs: self.env.action_space.sample(),
         )
 
     def update(

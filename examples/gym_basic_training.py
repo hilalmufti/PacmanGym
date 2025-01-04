@@ -8,7 +8,7 @@ from tqdm import trange
 
 
 def policy(obs, qs, eps, pred, act, rand):
-    return int(act(obs, qs)) if not pred(eps) else rand(obs, qs)
+    return act(obs, qs) if not pred(eps) else rand(obs, qs)
 
 
 def policy_eps_greedy(obs, qs, eps, act, rand):
@@ -124,7 +124,7 @@ class BlackjackAgent:
             obs,
             self.q_values,
             self.epsilon,
-            lambda obs, qs: np.argmax(qs[obs]),
+            lambda obs, qs: int(np.argmax(qs[obs])),
             lambda obs, qs: self.env.action_space.sample(),
         )
 
